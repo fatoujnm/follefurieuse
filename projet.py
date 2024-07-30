@@ -87,9 +87,6 @@ if st.sidebar.button("Prédire le Prix"):
     predicted_price = predict_price(gr_liv_area, year_built, overall_qual, overall_cond)
     st.write(f"Prix de Vente Prédit: ${predicted_price:,.2f}")
 
-# Visualisations
-st.header("Visualisations des Données")
-
 # Distribution du Prix de Vente
 st.subheader("Distribution du Prix de Vente")
 fig, ax = plt.subplots(figsize=(10, 6))
@@ -97,6 +94,7 @@ sns.histplot(df['SalePrice'], kde=True, ax=ax)
 ax.set_title('Distribution du Prix de Vente')
 ax.set_xlabel('Prix de Vente')
 ax.set_ylabel('Fréquence')
+ax.legend(['Distribution avec KDE'])  # Ajouter une légende
 st.pyplot(fig)
 
 # Relation entre la Surface Habitable et le Prix de Vente
@@ -106,6 +104,7 @@ sns.scatterplot(x='Gr Liv Area', y='SalePrice', data=df, ax=ax)
 ax.set_title('Relation entre la Surface Habitable et le Prix de Vente')
 ax.set_xlabel('Surface Habitable (pieds carrés)')
 ax.set_ylabel('Prix de Vente')
+ax.legend(['Points'])  # Ajouter une légende
 st.pyplot(fig)
 
 # Relation entre l'Année de Construction et le Prix de Vente
@@ -115,6 +114,7 @@ sns.scatterplot(x='Year Built', y='SalePrice', data=df, ax=ax)
 ax.set_title('Relation entre l\'Année de Construction et le Prix de Vente')
 ax.set_xlabel('Année de Construction')
 ax.set_ylabel('Prix de Vente')
+ax.legend(['Points'])  # Ajouter une légende
 st.pyplot(fig)
 
 # Relation entre le Quartier et le Prix de Vente
@@ -126,7 +126,29 @@ if 'Neighborhood' in df.columns:
     ax.set_xlabel('Quartier')
     ax.set_ylabel('Prix de Vente')
     ax.tick_params(axis='x', rotation=90)
+    ax.legend(['Quartier'])  # Ajouter une légende
     st.pyplot(fig)
 else:
     st.write("La colonne 'Neighborhood' n'existe pas dans les données après prétraitement.")
+
+# Importance des Caractéristiques
+st.subheader("Importance des Caractéristiques")
+
+# Calcul de l'importance des caractéristiques
+importances = model.feature_importances_
+indices = np.argsort(importances)[::-1]
+
+# Création du DataFrame pour les importances
+importance_df = pd.DataFrame({
+    'Feature': [features[i] for i in indices],
+    'Importance': importances[indices]
+})
+
+# Création du graphique
+fig, ax = plt.subplots(figsize=(12, 8))
+sns.barplot(x='Importance', y='Feature', data=importance_df, ax=ax)
+ax.set_title('Importance des Caractéristiques')
+ax.set_xlabel('Importance')
+ax.set_ylabel('Caractéristiques')
+st.pyplot(fig)
 

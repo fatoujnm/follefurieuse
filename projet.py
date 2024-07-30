@@ -40,6 +40,7 @@ model.fit(X_train, y_train)
 
 # Fonction de prédiction
 def predict_price(gr_liv_area, year_built, overall_qual, overall_cond):
+    # Créer un dataframe avec les valeurs par défaut pour les colonnes catégorielles
     input_data = {
         'Gr Liv Area': gr_liv_area,
         'Year Built': year_built,
@@ -57,49 +58,32 @@ def predict_price(gr_liv_area, year_built, overall_qual, overall_cond):
 # Interface Utilisateur
 st.title("Prédiction du Prix de Vente des Maisons")
 
-# Explications de l'application
-st.markdown("""
-Cette application prédit le prix de vente des maisons en fonction de leurs caractéristiques. 
-Veuillez saisir les informations pertinentes dans la barre latérale pour obtenir une estimation du prix de vente.
-""")
-
 st.sidebar.header("Saisir les Informations")
 
 # Saisie des caractéristiques de la maison
 gr_liv_area = st.sidebar.slider("Surface Habitable (pieds carrés)", min_value=0, max_value=5000, value=1500)
 gr_liv_area_manual = st.sidebar.text_input("Ou entrez la Surface Habitable (pieds carrés) manuellement", value="1500")
 if gr_liv_area_manual:
-    try:
-        gr_liv_area = int(gr_liv_area_manual)
-    except ValueError:
-        st.sidebar.error("Veuillez entrer une valeur numérique valide pour la Surface Habitable.")
+    gr_liv_area = int(gr_liv_area_manual)
 
 year_built = st.sidebar.slider("Année de Construction", min_value=1900, max_value=2023, value=2000)
 year_built_manual = st.sidebar.text_input("Ou entrez l'Année de Construction manuellement", value="2000")
 if year_built_manual:
-    try:
-        year_built = int(year_built_manual)
-    except ValueError:
-        st.sidebar.error("Veuillez entrer une valeur numérique valide pour l'Année de Construction.")
+    year_built = int(year_built_manual)
 
 overall_qual = st.sidebar.slider("Qualité Globale", min_value=1, max_value=10, value=5)
 overall_qual_manual = st.sidebar.text_input("Ou entrez la Qualité Globale manuellement", value="5")
 if overall_qual_manual:
-    try:
-        overall_qual = int(overall_qual_manual)
-    except ValueError:
-        st.sidebar.error("Veuillez entrer une valeur numérique valide pour la Qualité Globale.")
+    overall_qual = int(overall_qual_manual)
 
 overall_cond = st.sidebar.slider("Condition Globale", min_value=1, max_value=10, value=5)
 overall_cond_manual = st.sidebar.text_input("Ou entrez la Condition Globale manuellement", value="5")
 if overall_cond_manual:
-    try:
-        overall_cond = int(overall_cond_manual)
-    except ValueError:
-        st.sidebar.error("Veuillez entrer une valeur numérique valide pour la Condition Globale.")
+    overall_cond = int(overall_cond_manual)
 
 # Bouton pour déclencher la prédiction
 if st.sidebar.button("Prédire le Prix"):
+    # Calcul du prix prédit
     predicted_price = predict_price(gr_liv_area, year_built, overall_qual, overall_cond)
     st.write(f"Prix de Vente Prédit: ${predicted_price:,.2f}")
 
@@ -113,7 +97,6 @@ sns.histplot(df['SalePrice'], kde=True, ax=ax)
 ax.set_title('Distribution du Prix de Vente')
 ax.set_xlabel('Prix de Vente')
 ax.set_ylabel('Fréquence')
-ax.legend(['Prix de Vente'])
 st.pyplot(fig)
 
 # Relation entre la Surface Habitable et le Prix de Vente
@@ -123,7 +106,6 @@ sns.scatterplot(x='Gr Liv Area', y='SalePrice', data=df, ax=ax)
 ax.set_title('Relation entre la Surface Habitable et le Prix de Vente')
 ax.set_xlabel('Surface Habitable (pieds carrés)')
 ax.set_ylabel('Prix de Vente')
-ax.legend(['Prix de Vente'])
 st.pyplot(fig)
 
 # Relation entre l'Année de Construction et le Prix de Vente
@@ -133,7 +115,6 @@ sns.scatterplot(x='Year Built', y='SalePrice', data=df, ax=ax)
 ax.set_title('Relation entre l\'Année de Construction et le Prix de Vente')
 ax.set_xlabel('Année de Construction')
 ax.set_ylabel('Prix de Vente')
-ax.legend(['Prix de Vente'])
 st.pyplot(fig)
 
 # Relation entre le Quartier et le Prix de Vente
@@ -145,13 +126,7 @@ if 'Neighborhood' in df.columns:
     ax.set_xlabel('Quartier')
     ax.set_ylabel('Prix de Vente')
     ax.tick_params(axis='x', rotation=90)
-    ax.legend(['Prix de Vente'])
     st.pyplot(fig)
 else:
     st.write("La colonne 'Neighborhood' n'existe pas dans les données après prétraitement.")
 
-# Importance des caractéristiques
-st.header("Importance des Caractéristiques")
-feature_importances = pd.Series(model.feature_importances_, index=features).sort_values(ascending=False)
-st.bar_chart(feature_importances)
-st.write("Les caractéristiques les plus importantes pour prédire le prix de vente des maisons sont affichées ci-dessus.")

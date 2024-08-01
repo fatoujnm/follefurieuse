@@ -6,16 +6,29 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.metrics import mean_squared_error, r2_score
 
-# Titre de l'application
-st.title("Analyse et Modélisation des Prix de Vente de Maisons")
+# Création de l'Interface Utilisateur
+st.title("Application de Prédiction des Prix de Vente de Maisons")
+st.write("""
+Cette application web permet aux utilisateurs de saisir les caractéristiques d'une maison et d'obtenir des prédictions sur son prix de vente. 
+Elle utilise un modèle de régression linéaire, ainsi que des variantes Ridge et Lasso pour fournir des prévisions précises. 
+
+### Fonctionnalités :
+1. **Saisie des Données** : Les utilisateurs peuvent entrer des informations telles que la surface habitable, la surface du sous-sol, et la surface du premier étage.
+2. **Prédictions** : Basé sur les données saisies, l'application prédit le prix de vente de la maison en utilisant différents modèles de régression.
+3. **Visualisations** : Affichage des graphiques pour aider à comprendre les distributions de données et les relations entre les variables.
+4. **Analyse des Résultats** : Les performances des modèles sont évaluées et affichées, fournissant des métriques telles que l'Erreur Quadratique Moyenne (MSE) et le Coefficient de Détermination (R²).
+
+### Mise en Place de la Surveillance :
+Nous avons mis en place des outils pour surveiller les performances du modèle en production. Cela inclut :
+
+- **Suivi des Performances** : Surveillance des métriques telles que l'Erreur Quadratique Moyenne (MSE) et le Coefficient de Détermination (R²) pour détecter toute dégradation de la performance.
+- **Journalisation des Erreurs** : Mise en place d'un système de journalisation pour enregistrer les erreurs et les anomalies dans les prédictions.
+- **Collecte des Retours Utilisateurs** : Recueil des retours des utilisateurs pour identifier des problèmes potentiels et des améliorations nécessaires.
+""")
 
 # Charger les données
 st.header("1. Charger les Données")
-@st.cache_data
-def load_data():
-    return pd.read_csv('AmesHousing.csv')
-
-df = load_data()
+df = pd.read_csv('AmesHousing.csv')
 st.write(df.head())
 
 # Afficher les informations sur le DataFrame
@@ -33,10 +46,6 @@ st.header("4. Nettoyage des Données")
 
 # Nettoyer les noms des colonnes en supprimant les espaces et les caractères invisibles
 df.columns = df.columns.str.strip()
-
-# Calculer le nombre de valeurs manquantes par colonne
-st.subheader("Valeurs Manquantes")
-st.write(df.isnull().sum())
 
 # Imputer les valeurs manquantes avec la médiane pour les colonnes numériques
 df.fillna(df.median(numeric_only=True), inplace=True)
@@ -68,7 +77,6 @@ df['SalePrice'].plot(kind='hist', bins=50, edgecolor='k', alpha=0.7, ax=ax)
 ax.set_title('Distribution des Prix de Vente')
 ax.set_xlabel('Prix de Vente')
 ax.set_ylabel('Fréquence')
-ax.legend(['SalePrice'])
 st.pyplot(fig)
 
 # Ingénierie des Fonctionnalités
@@ -84,52 +92,56 @@ st.subheader("DataFrame Encodé")
 st.write(df_encoded.head())
 
 # Visualisation de la distribution de SalePrice
-st.header("7. Visualisation des Relations")
+st.header("7. Visualisation")
+st.subheader("Distribution de SalePrice")
 fig, ax = plt.subplots(figsize=(10, 6))
 sns.histplot(df['SalePrice'], kde=True, bins=50, ax=ax)
 ax.set_title('Distribution des Prix de Vente')
 ax.set_xlabel('Prix de Vente')
 ax.set_ylabel('Fréquence')
-ax.legend(['SalePrice'])
 st.pyplot(fig)
 
 # Relation entre Gr Liv Area et SalePrice
+st.subheader("Relation entre Gr Liv Area et SalePrice")
 fig, ax = plt.subplots(figsize=(10, 6))
 sns.scatterplot(x=df['Gr Liv Area'], y=df['SalePrice'], ax=ax)
 ax.set_title('Surface Habitable par Rapport au Prix de Vente')
 ax.set_xlabel('Surface Habitable (pieds carrés)')
 ax.set_ylabel('Prix de Vente')
-ax.legend(['Gr Liv Area vs SalePrice'])
 st.pyplot(fig)
 
 # Relation entre Total Bsmt SF et SalePrice
+st.subheader("Relation entre Total Bsmt SF et SalePrice")
 fig, ax = plt.subplots(figsize=(10, 6))
 sns.scatterplot(x=df['Total Bsmt SF'], y=df['SalePrice'], ax=ax)
 ax.set_title('Surface Totale du Sous-Sol par Rapport au Prix de Vente')
 ax.set_xlabel('Surface du Sous-Sol (pieds carrés)')
 ax.set_ylabel('Prix de Vente')
-ax.legend(['Total Bsmt SF vs SalePrice'])
 st.pyplot(fig)
 
 # Relation entre 1st Flr SF et SalePrice
+st.subheader("Relation entre 1st Flr SF et SalePrice")
 fig, ax = plt.subplots(figsize=(10, 6))
 sns.scatterplot(x=df['1st Flr SF'], y=df['SalePrice'], ax=ax)
 ax.set_title('Surface du Premier Étage par Rapport au Prix de Vente')
 ax.set_xlabel('Surface du Premier Étage (pieds carrés)')
 ax.set_ylabel('Prix de Vente')
-ax.legend(['1st Flr SF vs SalePrice'])
 st.pyplot(fig)
 
+# Filtrage des colonnes numériques pour la matrice de corrélation
+numeric_df = df.select_dtypes(include=['number']).dropna(axis=1, how='any')
+
 # Matrice de corrélation
-st.header("8. Matrice de Corrélation")
+st.subheader("Matrice de Corrélation")
 fig, ax = plt.subplots(figsize=(12, 10))
-corr_matrix = df.corr()
+corr_matrix = numeric_df.corr()
 sns.heatmap(corr_matrix, annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
 ax.set_title('Matrice de Corrélation des Variables Numériques')
 st.pyplot(fig)
 
 # Préparation des données pour le modèle de régression
-st.header("9. Modélisation")
+st.header("8. Modélisation")
+
 # Sélection des variables
 X = df[['Gr Liv Area', 'Total Bsmt SF', '1st Flr SF']]
 y = df['SalePrice']
@@ -142,6 +154,8 @@ model = LinearRegression()
 model.fit(X_train, y_train)
 
 # Recherche des paramètres optimaux pour Ridge et Lasso
+st.subheader("Optimisation des Modèles Ridge et Lasso")
+
 ridge = Ridge()
 lasso = Lasso()
 
@@ -161,6 +175,8 @@ y_pred_ridge = ridge_cv.predict(X_test)
 y_pred_lasso = lasso_cv.predict(X_test)
 
 # Évaluation du modèle
+st.subheader("Évaluation des Modèles")
+
 mse_linear = mean_squared_error(y_test, y_pred_linear)
 r2_linear = r2_score(y_test, y_pred_linear)
 
@@ -170,7 +186,6 @@ r2_ridge = r2_score(y_test, y_pred_ridge)
 mse_lasso = mean_squared_error(y_test, y_pred_lasso)
 r2_lasso = r2_score(y_test, y_pred_lasso)
 
-st.subheader("Évaluation des Modèles")
 st.write(f'Erreur Quadratique Moyenne (MSE) - Régression Linéaire : {mse_linear}')
 st.write(f'Coefficient de Détermination (R²) - Régression Linéaire : {r2_linear}')
 
@@ -180,14 +195,7 @@ st.write(f'Coefficient de Détermination (R²) - Ridge : {r2_ridge}')
 st.write(f'Erreur Quadratique Moyenne (MSE) - Lasso : {mse_lasso}')
 st.write(f'Coefficient de Détermination (R²) - Lasso : {r2_lasso}')
 
-# Analyse des résidus pour la régression linéaire
-st.header("10. Analyse des Résidus")
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.scatter(y_test, y_pred_linear, label='Prédictions vs Réel')
-ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=4, label='Ligne d\'égalité')
-ax.set_xlabel('Valeurs Réelles')
-ax.set_ylabel('Valeurs Prédites')
-ax.set_title('Valeurs Réelles vs Prédites - Régression Linéaire')
-ax.legend()
-st.pyplot(fig)
+st.write("""
+Pour utiliser cette application, saisissez les informations sur la maison dans la section de saisie des données, et cliquez sur 'Prédire' pour obtenir une estimation du prix de vente basé sur les modèles de régression.
+""")
 

@@ -11,7 +11,7 @@ st.title("Analyse et Modélisation des Prix de Vente de Maisons")
 
 # Charger les données
 st.header("1. Charger les Données")
-@st.cache
+@st.cache_data
 def load_data():
     return pd.read_csv('AmesHousing.csv')
 
@@ -190,3 +190,4 @@ ax.set_ylabel('Valeurs Prédites')
 ax.set_title('Valeurs Réelles vs Prédites - Régression Linéaire')
 ax.legend()
 st.pyplot(fig)
+

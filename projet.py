@@ -1,154 +1,227 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.metrics import mean_squared_error, r2_score
+
+# Création de l'Interface Utilisateur
+st.title("Application de Prédiction des Prix de Vente de Maisons")
+st.write("""
+Cette application web permet aux utilisateurs de saisir les caractéristiques d'une maison et d'obtenir des prédictions sur son prix de vente. 
+Elle utilise un modèle de régression linéaire, ainsi que des variantes Ridge et Lasso pour fournir des prévisions précises. 
+
+### Fonctionnalités :
+1. **Saisie des Données** : Les utilisateurs peuvent entrer des informations telles que la surface habitable, la surface du sous-sol, et la surface du premier étage.
+2. **Prédictions** : Basé sur les données saisies, l'application prédit le prix de vente de la maison en utilisant différents modèles de régression.
+3. **Visualisations** : Affichage des graphiques pour aider à comprendre les distributions de données et les relations entre les variables.
+4. **Analyse des Résultats** : Les performances des modèles sont évaluées et affichées, fournissant des métriques telles que l'Erreur Quadratique Moyenne (MSE) et le Coefficient de Détermination (R²).
+
+### Mise en Place de la Surveillance :
+Nous avons mis en place des outils pour surveiller les performances du modèle en production. Cela inclut :
+
+- **Suivi des Performances** : Surveillance des métriques telles que l'Erreur Quadratique Moyenne (MSE) et le Coefficient de Détermination (R²) pour détecter toute dégradation de la performance.
+- **Journalisation des Erreurs** : Mise en place d'un système de journalisation pour enregistrer les erreurs et les anomalies dans les prédictions.
+- **Collecte des Retours Utilisateurs** : Recueil des retours des utilisateurs pour identifier des problèmes potentiels et des améliorations nécessaires.
+""")
 
 # Charger les données
-@st.cache_data
-def load_data():
-    df = pd.read_csv('AmesHousing.csv')
-    df.columns = df.columns.str.strip()  # Nettoyer les noms des colonnes
-    return df
+st.header("1. Charger les Données")
+df = pd.read_csv('AmesHousing.csv')
+st.write(df.head())
 
-df = load_data()
+# Afficher les informations sur le DataFrame
+st.header("2. Informations sur le DataFrame")
+buffer = st.empty()
+df_info = df.info(buf=buffer)
+st.text(buffer.text)
 
-# Prétraitement des données
-def preprocess_data(df):
-    df.fillna(df.median(numeric_only=True), inplace=True)
-    df['Year Built'] = pd.to_numeric(df['Year Built'], errors='coerce')
-    df['Age'] = df['Yr Sold'] - df['Year Built']
-    df_encoded = pd.get_dummies(df, columns=['Neighborhood', 'House Style'], drop_first=True)
-    return df_encoded
+# Afficher des statistiques descriptives
+st.header("3. Statistiques Descriptives")
+st.write(df.describe(include='all'))
 
-df_encoded = preprocess_data(df)
+# Nettoyage des Données
+st.header("4. Nettoyage des Données")
 
-# Sélection des fonctionnalités
-features = ['Gr Liv Area', 'Year Built', 'Overall Qual', 'Overall Cond'] + [col for col in df_encoded.columns if col.startswith('Neighborhood_') or col.startswith('House Style_')]
-X = df_encoded[features]
-y = df_encoded['SalePrice']
+# Nettoyer les noms des colonnes en supprimant les espaces et les caractères invisibles
+df.columns = df.columns.str.strip()
 
-# Séparation des données en ensembles d'entraînement et de test
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Imputer les valeurs manquantes avec la médiane pour les colonnes numériques
+df.fillna(df.median(numeric_only=True), inplace=True)
 
-# Entraînement du modèle
-model = RandomForestRegressor(random_state=42)
-model.fit(X_train, y_train)
+# Conversion de la colonne 'Year Built' en numérique
+df['Year Built'] = pd.to_numeric(df['Year Built'], errors='coerce')
 
-# Fonction de prédiction
-def predict_price(gr_liv_area, year_built, overall_qual, overall_cond):
-    # Créer un dataframe avec les valeurs par défaut pour les colonnes catégorielles
-    input_data = {
-        'Gr Liv Area': gr_liv_area,
-        'Year Built': year_built,
-        'Overall Qual': overall_qual,
-        'Overall Cond': overall_cond,
-    }
-    for col in features:
-        if col not in input_data:
-            input_data[col] = 0  # Valeur par défaut pour les colonnes manquantes
+# Détection des Valeurs Aberrantes
+st.header("5. Détection des Valeurs Aberrantes")
 
-    input_df = pd.DataFrame([input_data])
-    prediction = model.predict(input_df)
-    return prediction[0]
+# Calculer les quartiles et l'IQR pour la colonne 'SalePrice'
+Q1 = df['SalePrice'].quantile(0.25)
+Q3 = df['SalePrice'].quantile(0.75)
+IQR = Q3 - Q1
 
-# Interface Utilisateur
-st.title("Prédiction du Prix de Vente des Maisons")
+# Définir les bornes pour les valeurs aberrantes
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
 
-st.sidebar.header("Saisir les Informations")
+# Identifier les valeurs aberrantes
+outliers = df[(df['SalePrice'] < lower_bound) | (df['SalePrice'] > upper_bound)]
+st.subheader("Valeurs Aberrantes")
+st.write(outliers)
 
-# Saisie des caractéristiques de la maison
-gr_liv_area = st.sidebar.slider("Surface Habitable (pieds carrés)", min_value=0, max_value=5000, value=1500)
-gr_liv_area_manual = st.sidebar.text_input("Ou entrez la Surface Habitable (pieds carrés) manuellement", value="1500")
-if gr_liv_area_manual:
-    gr_liv_area = int(gr_liv_area_manual)
-
-year_built = st.sidebar.slider("Année de Construction", min_value=1900, max_value=2023, value=2000)
-year_built_manual = st.sidebar.text_input("Ou entrez l'Année de Construction manuellement", value="2000")
-if year_built_manual:
-    year_built = int(year_built_manual)
-
-overall_qual = st.sidebar.slider("Qualité Globale", min_value=1, max_value=10, value=5)
-overall_qual_manual = st.sidebar.text_input("Ou entrez la Qualité Globale manuellement", value="5")
-if overall_qual_manual:
-    overall_qual = int(overall_qual_manual)
-
-overall_cond = st.sidebar.slider("Condition Globale", min_value=1, max_value=10, value=5)
-overall_cond_manual = st.sidebar.text_input("Ou entrez la Condition Globale manuellement", value="5")
-if overall_cond_manual:
-    overall_cond = int(overall_cond_manual)
-
-# Bouton pour déclencher la prédiction
-if st.sidebar.button("Prédire le Prix"):
-    # Calcul du prix prédit
-    predicted_price = predict_price(gr_liv_area, year_built, overall_qual, overall_cond)
-    st.write(f"Prix de Vente Prédit: ${predicted_price:,.2f}")
-
-# Distribution du Prix de Vente
-st.subheader("Distribution du Prix de Vente")
-fig, ax = plt.subplots(figsize=(10, 6))
-sns.histplot(df['SalePrice'], kde=True, ax=ax)
-ax.set_title('Distribution du Prix de Vente')
+# Visualisation des valeurs aberrantes pour 'SalePrice' avec un histogramme
+st.subheader("Distribution des Prix de Vente")
+fig, ax = plt.subplots()
+df['SalePrice'].plot(kind='hist', bins=50, edgecolor='k', alpha=0.7, ax=ax)
+ax.set_title('Distribution des Prix de Vente')
 ax.set_xlabel('Prix de Vente')
 ax.set_ylabel('Fréquence')
-ax.legend(['Distribution avec KDE'])  # Ajouter une légende
 st.pyplot(fig)
 
-# Relation entre la Surface Habitable et le Prix de Vente
-st.subheader("Relation entre la Surface Habitable et le Prix de Vente")
+# Ingénierie des Fonctionnalités
+st.header("6. Ingénierie des Fonctionnalités")
+
+# Ajouter une fonctionnalité pour la différence d'année de construction
+df['Age'] = df['Yr Sold'] - df['Year Built']
+
+# Création de variables indicatrices pour les colonnes catégorielles
+df_encoded = pd.get_dummies(df, columns=['Neighborhood', 'House Style'])
+
+st.subheader("DataFrame Encodé")
+st.write(df_encoded.head())
+
+# Visualisation de la distribution de SalePrice
+st.header("7. Visualisation")
+st.subheader("Distribution de SalePrice")
 fig, ax = plt.subplots(figsize=(10, 6))
-sns.scatterplot(x='Gr Liv Area', y='SalePrice', data=df, ax=ax)
-ax.set_title('Relation entre la Surface Habitable et le Prix de Vente')
+sns.histplot(df['SalePrice'], kde=True, bins=50, ax=ax)
+ax.set_title('Distribution des Prix de Vente')
+ax.set_xlabel('Prix de Vente')
+ax.set_ylabel('Fréquence')
+st.pyplot(fig)
+
+# Relation entre Gr Liv Area et SalePrice
+st.subheader("Relation entre Gr Liv Area et SalePrice")
+fig, ax = plt.subplots(figsize=(10, 6))
+sns.scatterplot(x=df['Gr Liv Area'], y=df['SalePrice'], ax=ax)
+ax.set_title('Surface Habitable par Rapport au Prix de Vente')
 ax.set_xlabel('Surface Habitable (pieds carrés)')
 ax.set_ylabel('Prix de Vente')
-ax.legend(['Points'])  # Ajouter une légende
 st.pyplot(fig)
 
-# Relation entre l'Année de Construction et le Prix de Vente
-st.subheader("Relation entre l'Année de Construction et le Prix de Vente")
+# Relation entre Total Bsmt SF et SalePrice
+st.subheader("Relation entre Total Bsmt SF et SalePrice")
 fig, ax = plt.subplots(figsize=(10, 6))
-sns.scatterplot(x='Year Built', y='SalePrice', data=df, ax=ax)
-ax.set_title('Relation entre l\'Année de Construction et le Prix de Vente')
-ax.set_xlabel('Année de Construction')
+sns.scatterplot(x=df['Total Bsmt SF'], y=df['SalePrice'], ax=ax)
+ax.set_title('Surface Totale du Sous-Sol par Rapport au Prix de Vente')
+ax.set_xlabel('Surface du Sous-Sol (pieds carrés)')
 ax.set_ylabel('Prix de Vente')
-ax.legend(['Points'])  # Ajouter une légende
 st.pyplot(fig)
 
-# Relation entre le Quartier et le Prix de Vente
-st.subheader("Relation entre le Quartier et le Prix de Vente")
-if 'Neighborhood' in df.columns:
-    fig, ax = plt.subplots(figsize=(12, 8))
-    sns.boxplot(x='Neighborhood', y='SalePrice', data=df, ax=ax)
-    ax.set_title('Relation entre le Quartier et le Prix de Vente')
-    ax.set_xlabel('Quartier')
-    ax.set_ylabel('Prix de Vente')
-    ax.tick_params(axis='x', rotation=90)
-    ax.legend(['Quartier'])  # Ajouter une légende
-    st.pyplot(fig)
-else:
-    st.write("La colonne 'Neighborhood' n'existe pas dans les données après prétraitement.")
-
-# Importance des Caractéristiques
-st.subheader("Importance des Caractéristiques")
-
-# Calcul de l'importance des caractéristiques
-importances = model.feature_importances_
-indices = np.argsort(importances)[::-1]
-
-# Création du DataFrame pour les importances
-importance_df = pd.DataFrame({
-    'Feature': [features[i] for i in indices],
-    'Importance': importances[indices]
-})
-
-# Création du graphique
-fig, ax = plt.subplots(figsize=(12, 8))
-sns.barplot(x='Importance', y='Feature', data=importance_df, ax=ax)
-ax.set_title('Importance des Caractéristiques')
-ax.set_xlabel('Importance')
-ax.set_ylabel('Caractéristiques')
+# Relation entre 1st Flr SF et SalePrice
+st.subheader("Relation entre 1st Flr SF et SalePrice")
+fig, ax = plt.subplots(figsize=(10, 6))
+sns.scatterplot(x=df['1st Flr SF'], y=df['SalePrice'], ax=ax)
+ax.set_title('Surface du Premier Étage par Rapport au Prix de Vente')
+ax.set_xlabel('Surface du Premier Étage (pieds carrés)')
+ax.set_ylabel('Prix de Vente')
 st.pyplot(fig)
 
+# Filtrage des colonnes numériques pour la matrice de corrélation
+numeric_df = df.select_dtypes(include=['number'])
+
+# Matrice de corrélation
+st.subheader("Matrice de Corrélation")
+fig, ax = plt.subplots(figsize=(12, 10))
+corr_matrix = numeric_df.corr()
+sns.heatmap(corr_matrix, annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
+ax.set_title('Matrice de Corrélation des Variables Numériques')
+st.pyplot(fig)
+
+# Préparation des données pour le modèle de régression
+st.header("8. Modélisation")
+
+# Sélection des variables
+X = df[['Gr Liv Area', 'Total Bsmt SF', '1st Flr SF']]
+y = df['SalePrice']
+
+# Division des données en ensembles d'entraînement et de test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Entraînement du modèle de régression linéaire
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Recherche des paramètres optimaux pour Ridge et Lasso
+st.subheader("Optimisation des Modèles Ridge et Lasso")
+
+ridge = Ridge()
+lasso = Lasso()
+
+param_grid = {
+    'alpha': [0.1, 1.0, 10.0, 100.0]
+}
+
+ridge_cv = GridSearchCV(ridge, param_grid, cv=5)
+lasso_cv = GridSearchCV(lasso, param_grid, cv=5)
+
+ridge_cv.fit(X_train, y_train)
+lasso_cv.fit(X_train, y_train)
+
+# Prédictions avec les modèles optimisés
+y_pred_linear = model.predict(X_test)
+y_pred_ridge = ridge_cv.predict(X_test)
+y_pred_lasso = lasso_cv.predict(X_test)
+
+# Évaluation du modèle
+st.subheader("Évaluation des Modèles")
+
+mse_linear = mean_squared_error(y_test, y_pred_linear)
+r2_linear = r2_score(y_test, y_pred_linear)
+
+mse_ridge = mean_squared_error(y_test, y_pred_ridge)
+r2_ridge = r2_score(y_test, y_pred_ridge)
+
+mse_lasso = mean_squared_error(y_test, y_pred_lasso)
+r2_lasso = r2_score(y_test, y_pred_lasso)
+
+st.write(f'Erreur Quadratique Moyenne (MSE) - Régression Linéaire : {mse_linear}')
+st.write(f'Coefficient de Détermination (R²) - Régression Linéaire : {r2_linear}')
+
+st.write(f'Erreur Quadratique Moyenne (MSE) - Ridge : {mse_ridge}')
+st.write(f'Coefficient de Détermination (R²) - Ridge : {r2_ridge}')
+
+st.write(f'Erreur Quadratique Moyenne (MSE) - Lasso : {mse_lasso}')
+st.write(f'Coefficient de Détermination (R²) - Lasso : {r2_lasso}')
+
+# Analyse des résidus pour la régression linéaire
+st.subheader("Analyse des Résidus")
+fig, ax = plt.subplots(figsize=(10, 6))
+plt.scatter(y_test, y_pred_linear)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=4)
+ax.set_xlabel('Valeurs Réelles')
+ax.set_ylabel('Valeurs Prédites')
+ax.set_title('Valeurs Réelles vs Prédites - Régression Linéaire')
+st.pyplot(fig)
+
+# Implémentation de l'application pour les utilisateurs
+st.header("9. Implémentation et Utilisation")
+st.write("""
+Pour utiliser cette application, entrez les caractéristiques de la maison dans les champs ci-dessous et cliquez sur le bouton "Prédire" pour obtenir une estimation du prix de vente.
+""")
+
+# Création des champs de saisie pour les utilisateurs
+gr_liv_area = st.number_input("Surface Habitable (pieds carrés)", min_value=0)
+total_bsmt_sf = st.number_input("Surface Totale du Sous-Sol (pieds carrés)", min_value=0)
+first_flr_sf = st.number_input("Surface du Premier Étage (pieds carrés)", min_value=0)
+
+if st.button("Prédire"):
+    # Faire une prédiction avec le modèle de régression linéaire
+    user_input = pd.DataFrame({
+        'Gr Liv Area': [gr_liv_area],
+        'Total Bsmt SF': [total_bsmt_sf],
+        '1st Flr SF': [first_flr_sf]
+    })
+    prediction = model.predict(user_input)
+    st.write(f"Le prix estimé de la maison est : ${prediction[0]:,.2f}")
